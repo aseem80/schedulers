@@ -1,0 +1,116 @@
+version: "2"
+
+services:
+
+  rundeckdb:
+    image: mysql:5.7
+    environment:
+      MYSQL_DATABASE: rundeck
+      MYSQL_USER: rundeck
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_PASSWORD: password123
+    ports:
+      - "3306:3306"
+
+  rundeck1:
+    image: jordan/rundeck
+    mem_limit: 3g
+    environment:
+      NO_LOCAL_MYSQL: "true"
+      SERVER_URL: http://192.168.99.100:4440
+      DATABASE_URL: jdbc:mysql://rundeckdb/rundeck?autoReconnect=true
+      RUNDECK_PASSWORD: password123
+      RUNDECK_ADMIN_PASSWORD: admin
+      RUNDECK_STORAGE_PROVIDER: db
+    ports:
+      - "4440:4440"
+      - "4443:4443"
+    links:
+      - rundeckdb
+    volumes:
+     - ${HOME}/Documents/poc/sample-scheduled-app/target:/jobs/target
+
+  zk:
+    image: bobrik/zookeeper
+    mem_limit: 100m
+    network_mode: host
+    environment:
+      ZK_CONFIG: tickTime=2000,initLimit=10,syncLimit=5,maxClientCnxns=128,forceSync=no,clientPort=2181
+      ZK_ID: 1
+
+  master:
+    image: mesosphere/mesos-master:1.2.0
+    network_mode: host
+    environment:
+      MESOS_ZK: zk://127.0.0.1:2181/mesos
+      MESOS_QUORUM: 1
+      MESOS_CLUSTER: docker-compose
+      MESOS_REGISTRY: replicated_log # default is in_memory for some reason
+      MESOS_HOSTNAME: ${DOCKER_IP}
+      LIBPROCESS_IP: ${DOCKER_IP}
+    depends_on:
+      - zk
+
+  slave-one:
+    image: mesosphere/mesos-slave:1.2.0
+    network_mode: host
+    pid: host
+    environment:
+      MESOS_MASTER: zk://127.0.0.1:2181/mesos
+      MESOS_CONTAINERIZERS: docker,mesos
+      MESOS_PORT: 5051
+      MESOS_RESOURCES: ports(*):[11000-11999]
+      MESOS_HOSTNAME: ${DOCKER_IP}
+      LIBPROCESS_IP: ${DOCKER_IP}
+      MESOS_WORK_DIR: /tmp/mesos
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup
+      - /usr/local/bin/docker:/usr/bin/docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOME}/Documents/poc/sample-scheduled-app/target:/jobs/target
+    depends_on:
+      - zk
+
+
+  chronos2:
+    image: mesosphere/chronos:latest
+    command: --master zk://127.0.0.1:2181/mesos --zk_hosts zk://127.0.0.1:2181/mesos  --cassandra_contact_points ${DOCKER_IP}
+    network_mode: host
+    environment:
+      PORT0: 9090
+      PORT1: 9191
+    depends_on:
+      - zk
+      - cassandra
+
+  cassandra:
+    container_name: cassandra
+    image: library/cassandra:3.0
+    network_mode: host
+
+  dkron1:
+    image: dkron/dkron
+    depends_on:
+      - zookeeper
+    ports:
+      - "8080:8080"
+      - "8946:8946"
+    volumes:
+      - ./:/gopath/src/github.com/victorcoder/dkron
+      - ${HOME}/Documents/poc/sample-scheduled-app/target:/jobs/target
+    environment:
+      - GODEBUG=netdns=go
+    links:
+      - zookeeper:zk
+    command: agent -server -backend=zk -backend-machine=zk:2181 -join=dkron:8946 -log-level=debug
+
+
+
+  zookeeper:
+    image: garland/zookeeper
+    mem_limit: 100m
+    ports:
+      - "2180:2181"
+      - "2889:2888"
+      - "3889:3888"
+

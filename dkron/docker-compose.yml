@@ -1,0 +1,55 @@
+version: '2'
+
+services:
+
+  dkron1:
+    image: dkron/dkron
+    depends_on:
+      - zookeeper
+    ports:
+      - "8080:8080"
+      - "8946:8946"
+    volumes:
+     - ./:/gopath/src/github.com/victorcoder/dkron
+     - ${HOME}/Documents/poc/sample-scheduled-app/target:/jobs/target
+    environment:
+      - GODEBUG=netdns=go
+    links:
+         - zookeeper:zk
+    # Uncomment to use consul
+    # command: scripts/entrypoint.sh agent -server -backend=consul -backend-machine=consul:8500 -join=dkron:8946 -log-level=debug
+    # Uncomment to use etcd
+    # command: ./main agent -server -backend=etcd -backend-machine=etcd:2379 -join=dkron:8946 -log-level=debug
+    # Uncomment to use zk
+    command: agent -server -backend=zk -backend-machine=zk:2181 -join=dkron:8946 -log-level=debug
+
+  dkron2:
+      image: dkron/dkron
+      depends_on:
+        - zookeeper
+      ports:
+        - "8081:8080"
+        - "8947:8946"
+      volumes:
+       - ./:/gopath/src/github.com/victorcoder/dkron
+       - ${HOME}/Documents/poc/sample-scheduled-app/target:/jobs/target
+      environment:
+        - GODEBUG=netdns=go
+      links:
+           - zookeeper:zk
+      # Uncomment to use consul
+      # command: scripts/entrypoint.sh agent -server -backend=consul -backend-machine=consul:8500 -join=dkron:8946 -log-level=debug
+      # Uncomment to use etcd
+      # command: ./main agent -server -backend=etcd -backend-machine=etcd:2379 -join=dkron:8946 -log-level=debug
+      # Uncomment to use zk
+      command: agent -server -backend=zk -backend-machine=zk:2181 -join=dkron:8946 -log-level=debug
+
+
+  zookeeper:
+    image: garland/zookeeper
+    ports:
+     - "2181:2181"
+     - "2888:2888"
+     - "3888:3888"
+
+

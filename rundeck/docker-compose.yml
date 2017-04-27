@@ -1,0 +1,49 @@
+version: '2'
+
+services:
+
+ rundeckdb:
+   image: mysql:5.7
+   environment:
+     MYSQL_DATABASE: rundeck
+     MYSQL_USER: rundeck
+     MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+     MYSQL_PASSWORD: password123
+   volumes:
+     - /tmp/mysql:/var/lib/mysql
+   ports:
+     - "3306:3306"
+ rundeck1:
+   image: jordan/rundeck
+   environment:
+     NO_LOCAL_MYSQL: "true"
+     SERVER_URL: http://192.168.99.100:4440
+     DATABASE_URL: jdbc:mysql://rundeckdb/rundeck?autoReconnect=true
+     RUNDECK_PASSWORD: password123
+     RUNDECK_ADMIN_PASSWORD: admin
+     RUNDECK_STORAGE_PROVIDER: db
+   ports:
+     - "4440:4440"
+     - "4443:4443"
+   links:
+     - rundeckdb
+   volumes:
+    - ${HOME}/Documents/poc/sample-scheduled-app/target:/jobs/target
+
+
+ rundeck2:
+   image: jordan/rundeck
+   environment:
+     NO_LOCAL_MYSQL: "true"
+     SERVER_URL: http://192.168.99.100:4441
+     DATABASE_URL: jdbc:mysql://rundeckdb/rundeck?autoReconnect=true
+     RUNDECK_PASSWORD: password123
+     RUNDECK_ADMIN_PASSWORD: admin
+     RUNDECK_STORAGE_PROVIDER: db
+   ports:
+     - "4441:4440"
+     - "4442:4443"
+   links:
+     - rundeckdb
+   volumes:
+       - ${HOME}/Documents/poc/sample-scheduled-app/target:/jobs/target
